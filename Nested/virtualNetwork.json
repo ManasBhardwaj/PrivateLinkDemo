@@ -1,0 +1,73 @@
+{
+    "parameters": {
+       "appName": {
+            "type": "string",
+            "metadata": {
+                "description": "description"
+            }
+        },
+        "password": {
+            "type": "string",
+            "metadata": {
+                "description": "SQL Server Password"
+            }
+        }
+    },
+    "resources": [
+        {
+            "name": "[parameters('appName')]",
+            "type": "Microsoft.Network/virtualNetworks",
+            "apiVersion": "2019-11-01",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "[parameters('appName')]"
+            },
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "10.10.0.0/16"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "Subnet-1",
+                        "properties": {
+                            "addressPrefix": "10.10.1.0/24",
+                            "privateEndpointNetworkPolicies": "Disabled"
+                        }
+                    },
+                    {
+                        "name": "Subnet-2",
+                        "properties": {
+                            "addressPrefix": "10.10.2.0/24",
+                            "delegations": [
+                                {
+                                    "name": "delegation",
+                                    "properties": {
+                                        "serviceName": "Microsoft.Web/serverfarms"
+                                    }
+                                }
+                            ],
+                            "privateEndpointNetworkPolicies": "Enabled",
+                            "privateLinkServiceNetworkPolicies": "Enabled"
+                        }
+                    },
+                    {
+                        "name": "Subnet-3",
+                        "properties": {
+                            "addressPrefix": "10.10.3.0/24"
+                        }
+                    },
+                    {
+                        "name": "Subnet-4",
+                        "properties": {
+                            "addressPrefix": "10.10.4.0/24"
+                        }
+                    }
+                ]
+            }
+        }
+    ],
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0"
+}

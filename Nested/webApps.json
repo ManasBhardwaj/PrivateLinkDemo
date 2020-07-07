@@ -1,0 +1,113 @@
+{
+    "parameters": {
+        "appName": {
+            "type": "string",
+            "metadata": {
+                "description": "description"
+            }
+        },
+        "password": {
+            "type": "string",
+            "metadata": {
+                "description": "SQL Server Password"
+            }
+        }
+    },
+    "variables": {
+        "privateLink": "privatelink.azurewebsites.net",
+        "subnet1Name": "Subnet-1",
+        "subnet2Ref": "[resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('appName'), 'Subnet-2')]",
+        "privateEndPoint": "[concat(parameters('appName'), '-EP-')]"
+    },
+    "resources": [
+        {
+            "apiVersion": "2018-09-01",
+            "type": "Microsoft.Network/privateDnsZones",
+            "name": "[variables('privateLink')]",
+            "location": "global",
+            "tags": {},
+            "properties": {}
+        },
+        {
+            "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+            "apiVersion": "2018-09-01",
+            "name": "[concat(variables('privateLink'), '/', variables('privateLink'), '-link')]",
+            "location": "global",
+            "dependsOn": [
+                "[concat(resourceId('Microsoft.Network/privateDnsZones', variables('privateLink')))]"
+            ],
+            "properties": {
+                "registrationEnabled": false,
+                "virtualNetwork": {
+                    "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', parameters('appName')))]"
+                }
+            }
+        },
+        {
+            "name": "[parameters('appName')]",
+            "type": "Microsoft.Web/serverfarms",
+            "apiVersion": "2018-02-01",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "App Service Plan"
+            },
+            "sku": {
+                "name": "P1V2"
+            },
+            "properties": {
+                "name": "[parameters('appName')]"
+            }
+        },
+        {
+            "type": "Microsoft.Web/sites",
+            "apiVersion": "2018-11-01",
+            "name": "[concat(parameters('appName'), '-', copyIndex())]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/serverfarms', parameters('appName'))]"
+            ],
+            "resources": [
+                {
+                    "name": "virtualNetwork",
+                    "type": "config",
+                    "apiVersion": "2018-11-01",
+                     "location": "[resourceGroup().location]",
+                    "dependsOn": [
+                        "[concat('Microsoft.Web/sites/', parameters('appName'), '-', copyIndex())]"                      
+                    ],
+                    "properties": {
+                        "subnetResourceId": "[variables('subnet2Ref')]",
+                        "swiftSupported": true
+                    }
+                }
+            ],
+            "properties": {
+                "name": "[concat(parameters('appName'), '-', copyIndex())]",
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', parameters('appName'))]",
+                "siteConfig": {
+                    "appSettings": [
+                        {
+                            "name": "WEBSITE_DNS_SERVER",
+                            "value": "168.63.129.16"
+                        },
+                        {
+                            "name": "WEBSITE_VNET_ROUTE_ALL",
+                            "value": "1"
+                        },
+                        {
+                            "name": "JamesBond",
+                            "value": "007"
+                        }
+                    ]
+                }
+            },
+            "copy": {
+                "name": "siteCopy",
+                "count": 2
+            }
+        }
+
+    ],
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0"
+}

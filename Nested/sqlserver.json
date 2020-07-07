@@ -1,0 +1,149 @@
+{
+    "parameters": {
+        "appName": {
+            "type": "string",
+            "metadata": {
+                "description": "description"
+            }
+        },
+        "password": {
+            "type": "string",
+            "metadata": {
+                "description": "SQL Server Password"
+            }
+        }
+    },
+    "variables": {
+        "databaseName": "[concat(parameters('appName'), 'db')]",
+        "privateLinkDatabase": "privatelink.database.windows.net",     
+        "privateEndPointSQL": "[concat(parameters('appName'), '-EP-SQL')]",
+        "subnet1Name": "Subnet-1",
+        "pvtendpointdnsgroupname": "[concat(variables('privateEndPointSQL'),'/mydnsgroupname')]"
+    },
+    "resources": [
+        {
+            "name": "[parameters('appName')]",
+            "type": "Microsoft.Sql/servers",
+            "apiVersion": "2019-06-01-preview",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "SQL Server"
+            },
+            "properties": {
+                "administratorLogin": "[parameters('appName')]",
+                "administratorLoginPassword": "[parameters('password')]"
+            },
+            "resources": [
+                {
+                    "type": "firewallRules",
+                    "apiVersion": "2015-05-01-preview",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Sql/servers', parameters('appName'))]"
+                    ],
+                    "location": "[resourceGroup().location]",
+                    "name": "AllowAllWindowsAzureIps",
+                    "properties": {
+                        "startIpAddress": "0.0.0.0",
+                        "endIpAddress": "0.0.0.0"
+                    }
+                }
+            ]
+        },
+        {
+            "type": "Microsoft.Sql/servers/databases",
+            "apiVersion": "2019-06-01-preview",
+            "name": "[concat(parameters('appName'), '/', variables('databaseName'))]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "SQL Database"
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Sql/servers', parameters('appName'))]"
+            ],
+            "sku": {
+                "name": "Standard",
+                "tier": "Standard",
+                "capacity": 10
+            },
+            "properties": {
+                "collation": "SQL_Latin1_General_CP1_CI_AS",
+                "maxSizeBytes": 268435456000,
+                "catalogCollation": "SQL_Latin1_General_CP1_CI_AS",
+                "zoneRedundant": false,
+                "readScale": "Disabled",
+                "readReplicaCount": 0,
+                "storageAccountType": "GRS"
+            }
+        },
+        {
+            "apiVersion": "2018-09-01",
+            "type": "Microsoft.Network/privateDnsZones",
+            "name": "[variables('privateLinkDatabase')]",
+            "location": "global",
+            "tags": {},
+            "properties": {}
+        },
+        {
+            "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+            "apiVersion": "2018-09-01",
+            "name": "[concat(variables('privateLinkDatabase'), '/', variables('privateLinkDatabase'), '-link')]",
+            "location": "global",
+            "dependsOn": [
+                "[concat(resourceId('Microsoft.Network/privateDnsZones', variables('privateLinkDatabase')))]"
+            ],
+            "properties": {
+                "registrationEnabled": false,
+                "virtualNetwork": {
+                    "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', parameters('appName')))]"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+            "apiVersion": "2020-03-01",
+            "name": "[variables('pvtendpointdnsgroupname')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat(resourceId('Microsoft.Network/privateDnsZones', variables('privateLinkDatabase')))]",
+                "[variables('privateEndPointSQL')]"
+            ],
+            "properties": {
+                "privateDnsZoneConfigs": [
+                    {
+                        "name": "config1",
+                        "properties": {
+                            "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', variables('privateLinkDatabase'))]"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "type": "Microsoft.Network/privateEndpoints",
+            "apiVersion": "2019-04-01",
+            "name": "[variables('privateEndPointSQL')]",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat(resourceId('Microsoft.Sql/servers', parameters('appName')))]"
+            ],
+            "properties": {
+                "subnet": {
+                    "id": "[concat(resourceId('Microsoft.Network/virtualNetworks/subnets', parameters('appName'), variables('subnet1Name')))]"
+                },
+                "privateLinkServiceConnections": [
+                    {
+                        "name": "[variables('privateEndPointSQL')]",
+                        "properties": {
+                            "privateLinkServiceId": "[concat(resourceId('Microsoft.Sql/servers', parameters('appName')))]",
+                            "groupIds": [
+                                "sqlServer"
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+    ],
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0"
+}
